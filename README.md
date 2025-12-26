@@ -73,3 +73,89 @@ graph LR
     G --> H(((End)))
     B -.->|Timeout| X[Error State]
     X -.->|Retry| B
+```
+
+## ⚙️ Environment Setup & Installation
+
+> **Security Notice**  
+> For security best practices, API keys and OAuth credentials are **NOT included** in this repository.  
+> Please follow the steps below to reproduce the environment.
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/itisJoshuaTseng/GPA-Group-Project-Agent.git
+cd GPA-Group-Project-Agent
+```
+
+### 2. Install Dependencies
+
+Ensure you have **Python 3.9+** installed.
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Configure API Keys (`.env`)
+
+We use a `.env` file to manage sensitive NCKU API keys.
+
+Rename the provided template file:
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and fill in your specific API credentials:
+
+```ini
+API_KEY=your_ncku_api_key_here
+API_URL=https://api-gateway.netdb.csie.ncku.edu.tw/api/chat
+MODEL_NAME=gpt-oss:120b
+```
+
+### 4. Configure Google OAuth Credentials
+
+To enable Google Workspace automation, you need a Google Cloud Project with the following APIs enabled:
+
+- Google Drive API
+- Google Docs API
+- Google Slides API
+- Gmail API
+
+**Steps:**
+
+1. Download your OAuth 2.0 Client ID JSON file from the Google Cloud Console.
+2. Rename the file to `credentials.json`.
+3. Place `credentials.json` in the root directory of this project.
+
+> **Note**  
+> On the first run, the application will open a browser window asking for permission to access your Google account.  
+> Once granted, a `token.pickle` file will be generated locally to store the session.
+
+---
+
+## 🚀 Usage
+
+Run the Streamlit application:
+
+```bash
+python -m streamlit run main.py
+```
+
+### Workflow
+
+1. **Login**: Authenticate with your Google Account via the sidebar.  
+2. **Input**: Enter the course name, Student IDs, and upload the Assignment PDF.  
+3. **Configure**: Select the desired output format (Docs, Slides, or both) and the project deadline.  
+4. **Launch**: Click **Start Agent** to initiate the DFA workflow.
+
+---
+
+## 👥 Contributor
+
+- **Ling-Cheng Tseng** — System Architecture, API Integration, Prompt Engineering  
+
+Created for the **Fall 2025 Theory of Computation Final Project**.
+
+
