@@ -63,16 +63,52 @@ Unlike traditional scripts that crash on exception, **Failures are explicitly mo
 
 ```mermaid
 graph LR
-    A((Start)) --> B[LLM Analysis]
-    B --> C{Output Selection}
-    C -->|Docs| D[Create G-Doc]
-    C -->|Slides| E[Create G-Slide]
-    D --> F[Set Permissions]
-    E --> F
-    F --> G[Send Email]
-    G --> H(((End)))
-    B -.->|Timeout| X[Error State]
-    X -.->|Retry| B
+    %% 定義節點 (State 1-6)
+    S1["1. Login Google"]
+    S2["2. Input: Course, Members,<br/>PDF, Deadline"]
+    S3{"3. Select Format<br/>(Docs / Slides)"}
+    S4(("4. Start Agent"))
+    S5["5. Generate Prompt"]
+    S6["6. Call LLM API"]
+    
+    %% 新增：分流判斷點 (為了顯示選擇邏輯)
+    Split{{"Check Selection"}}
+
+    %% State 7 拆分為兩條路徑
+    S7a["7a. Call Google API<br/>Write Docs"]
+    S7b["7b. Call Google API<br/>Write Slides"]
+    
+    %% State 8-10 (收尾)
+    S8["8. Set Permissions<br/>(Common Editor)"]
+    S9["9. Send Email"]
+    S10["10. Show Results<br/>(Success/Fail List)"]
+
+    %% --- 流程連線 ---
+    S1 --> S2
+    S2 --> S3
+    S3 --> S4
+    S4 --> S5
+    S5 --> S6
+    
+    %% LLM 成功後進入分流檢查
+    S6 -->|Success| Split
+    S6 -.->|Error| S4
+
+    %% 分流邏輯 (Slide or Docs)
+    Split -->|Docs| S7a
+    Split -->|Slides| S7b
+    
+    %% Google API 成功 -> 匯聚到設定權限
+    S7a -->|Success| S8
+    S7b -->|Success| S8
+
+    %% Google API 失敗 -> 取消寄信回到 State 4
+    S7a -.->|Error: Cancel Email| S4
+    S7b -.->|Error: Cancel Email| S4
+
+    %% 後續流程
+    S8 --> S9
+    S9 --> S10
 ```
 
 ## ⚙️ Environment Setup & Installation
