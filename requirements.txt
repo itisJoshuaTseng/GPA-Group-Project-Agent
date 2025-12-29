@@ -5,4 +5,3 @@ google-auth-httplib2
 requests
 python-dotenv
 pypdf
-graphviz

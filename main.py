@@ -1,9 +1,8 @@
 import streamlit as st
 import time
 import datetime
-import graphviz
-import re  # 新增 re 用於解析錯誤訊息
-# 確保這些檔案都在同一個目錄下
+# REMOVED: import graphviz (Fixes Issue #15)
+import re
 from google_utils import get_google_service, create_doc_with_content, create_slides_presentation, share_file_permissions, send_gmail
 from llm_helper import extract_text_from_pdf, generate_project_plan
 
@@ -12,24 +11,31 @@ st.set_page_config(page_title="Course Agent", page_icon="🤖", layout="wide")
 
 # --- 狀態圖繪製 ---
 def draw_dag():
-    graph = graphviz.Digraph()
-    graph.attr(rankdir='LR')
-    graph.node('A', 'Start', shape='oval')
-    graph.node('B', 'LLM Analysis', shape='box', style='filled', fillcolor='lightblue')
-    graph.node('C1', 'Create Doc', shape='box', style='filled', fillcolor='lightyellow')
-    graph.node('C2', 'Create Slide', shape='box', style='filled', fillcolor='lightyellow')
-    graph.node('D', 'Set Permissions', shape='box', style='filled', fillcolor='lightyellow')
-    graph.node('E', 'Send Email', shape='box', style='filled', fillcolor='lightyellow')
-    graph.node('F', 'End', shape='oval', style='filled', fillcolor='lightgreen')
+    """
+    Returns a Graphviz DOT string directly.
+    This avoids the dependency on the 'graphviz' python library and system binaries.
+    """
+    return """
+    digraph {
+        rankdir="LR";
+        
+        A [label="Start", shape="oval"];
+        B [label="LLM Analysis", shape="box", style="filled", fillcolor="lightblue"];
+        C1 [label="Create Doc", shape="box", style="filled", fillcolor="lightyellow"];
+        C2 [label="Create Slide", shape="box", style="filled", fillcolor="lightyellow"];
+        D [label="Set Permissions", shape="box", style="filled", fillcolor="lightyellow"];
+        E [label="Send Email", shape="box", style="filled", fillcolor="lightyellow"];
+        F [label="End", shape="oval", style="filled", fillcolor="lightgreen"];
 
-    graph.edge('A', 'B')
-    graph.edge('B', 'C1')
-    graph.edge('B', 'C2')
-    graph.edge('C1', 'D')
-    graph.edge('C2', 'D')
-    graph.edge('D', 'E')
-    graph.edge('E', 'F')
-    return graph
+        A -> B;
+        B -> C1;
+        B -> C2;
+        C1 -> D;
+        C2 -> D;
+        D -> E;
+        E -> F;
+    }
+    """
 
 # --- 主程式 ---
 def main():
@@ -44,9 +50,12 @@ def main():
         if 'services' not in st.session_state:
             st.session_state.services = None
 
+        # 🟢 Authentication Check
+        # If secrets are configured or token exists, we might already be logged in.
+        # But for this UI, we keep the manual button or check status.
         if st.button("🔑 登入 Google"):
             try:
-                # 注意：這裡現在會回傳 4 個物件
+                # get_google_service now handles the complexity internally
                 gmail, drive, docs, slides = get_google_service()
                 if gmail:
                     st.session_state.services = (gmail, drive, docs, slides)
@@ -59,6 +68,8 @@ def main():
         
         st.divider()
         st.markdown("**System Logic (DAG)**")
+        
+        # Streamlit handles strings natively without requiring the system binary
         st.graphviz_chart(draw_dag())
 
     # 主畫面
@@ -99,7 +110,6 @@ def main():
         gmail_svc, drive_svc, docs_svc, slides_svc = st.session_state.services
         
         # 🟢 【修正點 1：過濾無效輸入】
-        # 使用 if s.strip() 過濾掉空字串，防止出現 "@gs.ncku.edu.tw" 這種無效 Email
         student_ids_list = [s.strip() for s in raw_ids.split(',') if s.strip()]
         emails = [f"{sid}@gs.ncku.edu.tw" if "@" not in sid else sid for sid in student_ids_list]
         
