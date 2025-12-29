@@ -1,19 +1,20 @@
 import os
 import json
+import time  # Added for retry delay
 import requests
 from dotenv import load_dotenv
 from pathlib import Path
-from custom_exceptions import LLMGenerationError  # Import the new exception
+from custom_exceptions import LLMGenerationError
 
 # 1. Load .env
 current_dir = Path(__file__).parent
 env_path = current_dir / '.env'
 load_dotenv(dotenv_path=env_path, override=True)
 
-def generate_project_plan(course_name, members, assignment_text, current_date, due_date, output_format="Docs"):
+def generate_project_plan(course_name, members, assignment_text, current_date, due_date, output_format="Docs", retries=3):
     """
-    Calls LLM API to generate project plan.
-    Raises: LLMGenerationError on failure.
+    Calls LLM API to generate project plan with automatic retries.
+    Raises: LLMGenerationError on failure after all retries.
     """
     
     # --- Configuration ---
@@ -120,50 +121,61 @@ def generate_project_plan(course_name, members, assignment_text, current_date, d
             "options": {"temperature": 0.7}
         }
 
-    print(f"🚀 Sending request to {provider.upper()}...")
+    # 🟢 RETRY LOOP LOGIC (Fixes Issue #11)
+    print(f"🚀 Sending request to {provider.upper()} (Max Retries: {retries})...")
 
-    try:
-        response = requests.post(api_url, headers=headers, json=payload, timeout=(10, 300))
-        
-        if response.status_code != 200:
-            # RAISE Exception instead of returning string
-            raise LLMGenerationError(f"API Error ({response.status_code}): {response.text}")
+    for attempt in range(retries):
+        try:
+            # Only print retry message if it's not the first attempt
+            if attempt > 0:
+                print(f"🔄 Retry Attempt {attempt + 1}/{retries}...")
 
-        result_json = response.json()
-        content = ""
-        
-        # --- Response Parsing ---
-        if provider == "gemini":
-            try:
-                content = result_json["candidates"][0]["content"]["parts"][0]["text"]
-            except KeyError:
-                 raise LLMGenerationError(f"Gemini Parsing Error: {result_json}")
-                 
-        elif provider == "openai":
-            if "choices" in result_json:
-                content = result_json["choices"][0]["message"]["content"]
-                
-        elif provider == "ollama" or provider == "ncku":
-            if "message" in result_json:
-                content = result_json["message"]["content"]
-            elif "response" in result_json:
-                content = result_json["response"]
-                
-        if not content:
-            raise LLMGenerationError(f"Unknown response format: {result_json.keys()}")
+            response = requests.post(api_url, headers=headers, json=payload, timeout=(10, 300))
             
-        # --- Cleaning ---
-        clean_content = content.replace("**", "").replace("##", "").replace("###", "")
-        clean_content = clean_content.replace("|---|", "").replace("|", "  ")
-        
-        return clean_content
+            if response.status_code != 200:
+                raise LLMGenerationError(f"API Error ({response.status_code}): {response.text}")
 
-    except requests.exceptions.Timeout:
-        raise LLMGenerationError("Request Timed Out. Please try again.")
-    except LLMGenerationError:
-        raise # Re-raise known errors
-    except Exception as e:
-        raise LLMGenerationError(f"Unexpected Error: {str(e)}")
+            result_json = response.json()
+            content = ""
+            
+            # --- Response Parsing ---
+            if provider == "gemini":
+                try:
+                    content = result_json["candidates"][0]["content"]["parts"][0]["text"]
+                except KeyError:
+                     raise LLMGenerationError(f"Gemini Parsing Error: {result_json}")
+                     
+            elif provider == "openai":
+                if "choices" in result_json:
+                    content = result_json["choices"][0]["message"]["content"]
+                    
+            elif provider == "ollama" or provider == "ncku":
+                if "message" in result_json:
+                    content = result_json["message"]["content"]
+                elif "response" in result_json:
+                    content = result_json["response"]
+                    
+            if not content:
+                raise LLMGenerationError(f"Unknown response format: {result_json.keys()}")
+                
+            # --- Cleaning ---
+            clean_content = content.replace("**", "").replace("##", "").replace("###", "")
+            clean_content = clean_content.replace("|---|", "").replace("|", "  ")
+            
+            return clean_content
+
+        except (requests.exceptions.Timeout, LLMGenerationError, Exception) as e:
+            # If this is the last attempt, re-raise the exception to main.py
+            if attempt == retries - 1:
+                print("❌ All retries failed.")
+                if isinstance(e, LLMGenerationError):
+                    raise e
+                else:
+                    raise LLMGenerationError(f"Unexpected Error: {str(e)}")
+            
+            # Otherwise, wait and continue
+            print(f"⚠️ Attempt {attempt + 1} failed: {e}. Retrying in 2 seconds...")
+            time.sleep(2)
 
 def extract_text_from_pdf(pdf_file):
     import pypdf
