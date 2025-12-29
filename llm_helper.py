@@ -3,23 +3,23 @@ import json
 import requests
 from dotenv import load_dotenv
 from pathlib import Path
+from custom_exceptions import LLMGenerationError  # Import the new exception
 
-# 1. 鎖定並強制載入 .env
+# 1. Load .env
 current_dir = Path(__file__).parent
 env_path = current_dir / '.env'
 load_dotenv(dotenv_path=env_path, override=True)
 
 def generate_project_plan(course_name, members, assignment_text, current_date, due_date, output_format="Docs"):
     """
-    呼叫 LLM API 生成專案規劃。
-    支援 Provider: OpenAI, Ollama, Gemini, NCKU
+    Calls LLM API to generate project plan.
+    Raises: LLMGenerationError on failure.
     """
     
     # --- Configuration ---
     provider = os.getenv("LLM_PROVIDER", "ncku").lower()
     api_key = os.getenv("API_KEY", "")
     
-    # Default Models
     default_models = {
         "openai": "gpt-4o",
         "gemini": "gemini-1.5-flash",
@@ -40,7 +40,6 @@ def generate_project_plan(course_name, members, assignment_text, current_date, d
         if not api_url: api_url = "http://localhost:11434/api/chat"
         
     elif provider == "gemini":
-        # Gemini uses the API key in the URL query parameter
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         
     else: # ncku
@@ -106,26 +105,14 @@ def generate_project_plan(course_name, members, assignment_text, current_date, d
     payload = {}
     
     if provider == "gemini":
-        # Gemini Specific Payload
-        payload = {
-            "contents": [{
-                "parts": [{"text": prompt}]
-            }]
-        }
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
     elif provider == "openai":
         payload = {
             "model": model_name,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7
         }
-    elif provider == "ollama":
-        payload = {
-            "model": model_name,
-            "messages": [{"role": "user", "content": prompt}],
-            "stream": False,
-            "options": {"temperature": 0.7}
-        }
-    else: # ncku
+    else: # ollama, ncku
         payload = {
             "model": model_name,
             "messages": [{"role": "user", "content": prompt}],
@@ -139,7 +126,8 @@ def generate_project_plan(course_name, members, assignment_text, current_date, d
         response = requests.post(api_url, headers=headers, json=payload, timeout=(10, 300))
         
         if response.status_code != 200:
-            return f"❌ API Error ({response.status_code}): {response.text}"
+            # RAISE Exception instead of returning string
+            raise LLMGenerationError(f"API Error ({response.status_code}): {response.text}")
 
         result_json = response.json()
         content = ""
@@ -149,7 +137,7 @@ def generate_project_plan(course_name, members, assignment_text, current_date, d
             try:
                 content = result_json["candidates"][0]["content"]["parts"][0]["text"]
             except KeyError:
-                 return f"❌ Gemini Parsing Error: {result_json}"
+                 raise LLMGenerationError(f"Gemini Parsing Error: {result_json}")
                  
         elif provider == "openai":
             if "choices" in result_json:
@@ -162,7 +150,7 @@ def generate_project_plan(course_name, members, assignment_text, current_date, d
                 content = result_json["response"]
                 
         if not content:
-            return f"❌ Unknown response format: {result_json.keys()}"
+            raise LLMGenerationError(f"Unknown response format: {result_json.keys()}")
             
         # --- Cleaning ---
         clean_content = content.replace("**", "").replace("##", "").replace("###", "")
@@ -171,11 +159,12 @@ def generate_project_plan(course_name, members, assignment_text, current_date, d
         return clean_content
 
     except requests.exceptions.Timeout:
-        return "❌ Request Timed Out. Please try again."
+        raise LLMGenerationError("Request Timed Out. Please try again.")
+    except LLMGenerationError:
+        raise # Re-raise known errors
     except Exception as e:
-        return f"❌ Unexpected Error: {str(e)}"
+        raise LLMGenerationError(f"Unexpected Error: {str(e)}")
 
-# PDF Function remains unchanged
 def extract_text_from_pdf(pdf_file):
     import pypdf
     try:
