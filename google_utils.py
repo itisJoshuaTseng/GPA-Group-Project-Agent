@@ -1,49 +1,102 @@
 import os
-import pickle
-import base64
 import json
+import base64
 from email.mime.text import MIMEText
+from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 import streamlit as st
 
-# 設定權限範圍
+# Fixes Issue #9: Downgraded 'drive' to 'drive.file' for security and easier verification
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.send',
-    'https://www.googleapis.com/auth/drive',
+    'https://www.googleapis.com/auth/drive.file',
     'https://www.googleapis.com/auth/documents',
     'https://www.googleapis.com/auth/presentations'
 ]
 
-def get_google_service():
-    """處理 OAuth 2.0 登入與憑證"""
+def get_google_creds():
+    """
+    Retrieves Google Cloud credentials using a sustainable hierarchy:
+    1. Streamlit Secrets (Production/Cloud Deployment)
+    2. Local 'token.json' (Local Development)
+    3. OAuth Flow (First-time Local Setup)
+    """
     creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-            
+    
+    # Strategy 1: Production - Check Streamlit Secrets
+    # This fixes Issue #1 by allowing server-side config without file upload
+    # FIXED: Added try-except because accessing st.secrets crashes if no file exists
+    try:
+        if "google_oauth" in st.secrets:
+            try:
+                # Reconstruct credentials from dictionary in secrets
+                creds = Credentials.from_authorized_user_info(
+                    info=st.secrets["google_oauth"], 
+                    scopes=SCOPES
+                )
+            except Exception as e:
+                st.error(f"⚠️ Error loading credentials from secrets: {e}")
+    except Exception:
+        # StreamlitSecretNotFoundError or FileNotFoundError will be caught here
+        # We silently pass to allow fallback to local strategies
+        pass
+
+    # Strategy 2: Local Development - Check token.json
+    # Fixes Issue #4: Replaces insecure 'pickle' with standard JSON
+    if not creds and os.path.exists('token.json'):
+        try:
+            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+        except Exception as e:
+            st.warning(f"⚠️ Corrupt token.json found. You may need to re-login. Error: {e}")
+
+    # Validation & Refresh
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            if not os.path.exists('credentials.json'):
-                st.error("❌ 找不到 credentials.json，請確認檔案已放入專案目錄！")
-                return None, None, None, None
-            
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-            
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
+            try:
+                creds.refresh(Request())
+            except Exception as e:
+                st.error(f"❌ Session expired and refresh failed: {e}")
+                creds = None
 
-    return (
-        build('gmail', 'v1', credentials=creds),
-        build('drive', 'v3', credentials=creds),
-        build('docs', 'v1', credentials=creds),
-        build('slides', 'v1', credentials=creds) 
-    )
+        # Strategy 3: Local Setup - Interactive Login
+        # Only runs if no valid secrets or tokens exist
+        if not creds:
+            if not os.path.exists('credentials.json'):
+                st.error("❌ 'credentials.json' not found. Please download it from Google Cloud Console and place it in the root directory.")
+                return None
+            
+            try:
+                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+                creds = flow.run_local_server(port=0)
+                
+                # Save the new token as JSON (Sustainable & Secure)
+                with open('token.json', 'w') as token:
+                    token.write(creds.to_json())
+            except Exception as e:
+                st.error(f"❌ Authentication failed: {e}")
+                return None
+
+    return creds
+
+def get_google_service():
+    """Builds and returns the Google Workspace service objects."""
+    creds = get_google_creds()
+    
+    if not creds:
+        return None, None, None, None
+
+    try:
+        return (
+            build('gmail', 'v1', credentials=creds),
+            build('drive', 'v3', credentials=creds),
+            build('docs', 'v1', credentials=creds),
+            build('slides', 'v1', credentials=creds) 
+        )
+    except Exception as e:
+        st.error(f"❌ Failed to connect to Google Services: {e}")
+        return None, None, None, None
 
 def create_doc_with_content(service_docs, service_drive, title, content):
     """建立 Google Doc 並寫入 LLM 產生的內容"""
@@ -113,7 +166,6 @@ def create_slides_presentation(service_slides, service_drive, title, json_conten
                     requests.append({'insertText': {'objectId': title_id, 'text': slide_title}})
                     
                     # 🟢 【新增功能】 2. 緊接著修改字體大小
-                    # 這裡設定為 42pt，你可以根據需要調整 'magnitude' 的數值
                     requests.append({
                         'updateTextStyle': {
                             'objectId': title_id,
@@ -123,13 +175,12 @@ def create_slides_presentation(service_slides, service_drive, title, json_conten
                                     'unit': 'PT'
                                 }
                             },
-                            'fields': 'fontSize' # 指定只更新 fontSize 這個屬性
+                            'fields': 'fontSize'
                         }
                     })
 
                 if slide_subtitle:
                     requests.append({'insertText': {'objectId': subtitle_id, 'text': str(slide_subtitle)}})
-                    # (可選) 你也可以在這裡增加修改副標題字體的請求
             
             # --- 內頁 (其他頁) ---
             else:
@@ -174,7 +225,6 @@ def create_slides_presentation(service_slides, service_drive, title, json_conten
 
     except Exception as e:
         error_msg = str(e)
-        # st.error(f"建立簡報失敗: {error_msg}") # 這裡可以註解掉，由 main.py 統一處理
         return None, None
     
 def share_file_permissions(service_drive, file_id, emails):
