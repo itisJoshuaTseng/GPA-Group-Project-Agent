@@ -1,3 +1,9 @@
+# Changelog
+
+## [Unreleased]
+### Fixed
+- Corrected malformed `git clone` command syntax in README.md.
+
 # 🛠️ GPA Refactoring & Modernization Report
 
 **Date:** December 30, 2025

@@ -1,4 +1,4 @@
-# GPA (Group Project Agent) 🎓
+<!-- # GPA (Group Project Agent) 🎓 -->
 
 > **"Automating the friction of group projects with Automata Theory & LLMs."**
 
@@ -120,7 +120,7 @@ graph LR
 ### 1. Clone the Repository
 
 ```bash
-git clone [https://github.com/itisJoshuaTseng/GPA-Group-Project-Agent.git](https://github.com/itisJoshuaTseng/GPA-Group-Project-Agent.git)
+git clone https://github.com/itisJoshuaTseng/GPA-Group-Project-Agent.git
 cd GPA-Group-Project-Agent
 ```
 
