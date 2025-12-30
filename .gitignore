@@ -1,14 +1,18 @@
 # .gitignore
 __pycache__/
 *.pyc
+src/__pycache__/
+tests/__pycache__/
 
-# Google 憑證 (絕對不能上傳)
+# Google Credentials (NEVER UPLOAD THESE)
 credentials.json
-token.pickle
+token.json            # <--- CHANGED: Added token.json
+token.pickle          # (Optional: Keep for safety if you still have old files)
 client_secret_*.json
 
-# 環境變數與金鑰
+# Environment Variables
 .env
 
-# MacOS 系統檔 (可選)
+# System Files
 .DS_Store
+token.json
