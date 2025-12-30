@@ -1,4 +1,6 @@
+import sys
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 from unittest.mock import patch, MagicMock
 from custom_exceptions import LLMGenerationError
 from llm_helper import generate_project_plan

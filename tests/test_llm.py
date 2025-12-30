@@ -1,4 +1,6 @@
+import sys
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 from dotenv import load_dotenv
 from llm_helper import generate_project_plan
 

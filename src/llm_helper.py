@@ -8,7 +8,7 @@ from custom_exceptions import LLMGenerationError
 
 # 1. Load .env
 current_dir = Path(__file__).parent
-env_path = current_dir / '.env'
+env_path = current_dir.parent / '.env'
 load_dotenv(dotenv_path=env_path, override=True)
 
 def generate_project_plan(course_name, members, assignment_text, current_date, due_date, output_format="Docs", retries=3):

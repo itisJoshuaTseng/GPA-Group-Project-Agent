@@ -176,7 +176,7 @@ To enable Google Workspace automation, you need a Google Cloud Project with the 
 Run the Streamlit application:
 
 ```bash
-python -m streamlit run main.py
+python -m streamlit run src/main.py
 ```
 
 ### Workflow
