@@ -1,4 +1,4 @@
-<!-- # GPA (Group Project Agent) 🎓 -->
+# GPA (Group Project Agent) 🎓
 
 > **"Automating the friction of group projects with Automata Theory & LLMs."**
 
@@ -163,7 +163,7 @@ DEFAULT_EMAIL_DOMAIN=gs.ncku.edu.tw
 # --- 1. OpenAI ---
 # API_KEY=sk-proj-xxxxxxxxxxxx
 # MODEL_NAME=gpt-4o-mini
-# API_URL=[https://api.openai.com/v1/chat/completions](https://api.openai.com/v1/chat/completions)
+# API_URL=https://api.openai.com/v1/chat/completions
 
 # --- 2. Ollama (Local) ---
 # API_KEY=unused

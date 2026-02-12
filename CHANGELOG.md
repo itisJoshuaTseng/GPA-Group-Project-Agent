@@ -4,6 +4,7 @@
 ### Fixed
 - Corrected malformed `git clone` command syntax in README.md.
 - Corrected broken markdown link from .env config example in README.md.
+- Fixed heading that was commented out. 
 
 # 🛠️ GPA Refactoring & Modernization Report
 
